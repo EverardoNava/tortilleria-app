@@ -1,0 +1,81 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+    directUrl = env("DIRECT_URL")
+}
+
+model AdminUser {
+    id           String    @id @default(cuid())
+    email        String    @unique
+    passwordHash String
+    createdAt    DateTime  @default(now())
+    sessions     Session[]
+}
+
+model Session {
+    id        String    @id @default(cuid())
+    tokenHash String    @unique
+    expiresAt DateTime
+    createdAt DateTime  @default(now())
+    userId    String
+    user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([expiresAt])
+}
+
+model Product {
+    id          String   @id @default(cuid())
+    name        String
+    description String
+    price       Decimal  @db.Decimal(10, 2)
+    unit        String
+    image       String
+    tag         String?
+    available   Boolean  @default(true)
+    sortOrder   Int      @default(0)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([available, sortOrder])
+}
+
+enum OrderStatus {
+    PENDING
+    READY
+    COMPLETED
+    CANCELLED
+}
+
+model Order {
+    id                     String      @id @default(cuid())
+    trackingCode           String      @unique
+    customerName           String
+    deliveryAddress        String
+    phone                  String
+    status                 OrderStatus @default(PENDING)
+    total                  Decimal     @db.Decimal(10, 2)
+    estimatedFulfillmentAt DateTime
+    createdAt              DateTime    @default(now())
+    updatedAt              DateTime    @updatedAt
+    items                  OrderItem[]
+
+    @@index([status, createdAt])
+    @@index([createdAt])
+}
+
+model OrderItem {
+    id          String  @id @default(cuid())
+    orderId     String
+    productName String
+    unit        String
+    quantity    Int
+    unitPrice   Decimal @db.Decimal(10, 2)
+    order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    @@index([orderId])
+}

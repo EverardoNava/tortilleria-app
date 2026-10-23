@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tortilleria}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cabrera-dev-only}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  db-init:
+    build:
+      context: .
+      target: builder
+    command: [ "sh", "-c", "npm run db:migrate:deploy && npm run db:seed" ]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-cabrera-dev-only}@db:5432/${POSTGRES_DB:-tortilleria}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-cabrera-dev-only}@db:5432/${POSTGRES_DB:-tortilleria}?schema=public
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Agrega ADMIN_EMAIL a .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Agrega ADMIN_PASSWORD a .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-cabrera-dev-only}@db:5432/${POSTGRES_DB:-tortilleria}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-cabrera-dev-only}@db:5432/${POSTGRES_DB:-tortilleria}?schema=public
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Agrega ADMIN_EMAIL a .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Agrega ADMIN_PASSWORD a .env}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
